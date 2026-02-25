@@ -69,10 +69,7 @@ The pipeline can be run in three ways:
 Leverage Torch Compile for Whisper and Parler-TTS. **The usage of Parler-TTS allows for audio output streaming, further reducing the overall latency** 🚀:
 
 ```bash
-python s2s_pipeline.py \
-	--lm_model_name microsoft/Phi-3-mini-4k-instruct \
-	--stt_compile_mode reduce-overhead \
-	--tts_compile_mode default \
+python s2s_pipeline.py --mode local --device cuda --lm_model_name microsoft/Phi-3-mini-4k-instruct --stt_compile_mode reduce-overhead --tts_compile_mode default \
     --recv_host 0.0.0.0 \
 	--send_host 0.0.0.0 
 ```

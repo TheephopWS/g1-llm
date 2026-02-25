@@ -9,3 +9,4 @@ langdetect
 nano-parakeet>=0.1.0  # For Parakeet TDT on CUDA/CPU (NeMo-free)
 sounddevice
 numpy
+hf_xet

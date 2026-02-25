@@ -5,7 +5,9 @@ from copy import copy
 from baseHandler import BaseHandler
 from rich.console import Console
 import logging
+import torch._dynamo
 
+torch._dynamo.config.suppress_errors = True
 logger = logging.getLogger(__name__)
 console = Console()
 

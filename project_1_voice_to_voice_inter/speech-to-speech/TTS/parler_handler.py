@@ -83,7 +83,8 @@ class ParlerTTSHandler(BaseHandler):
 
         if self.compile_mode:
             self.model.generation_config.cache_implementation = "static"
-            self.model.forward = torch.compile(self.model.forward, mode=self.compile_mode, fullgraph=True)
+            torch._dynamo.config.suppress_errors = True
+            self.model.forward = torch.compile(self.model.forward, mode=self.compile_mode, fullgraph=False)
 
         self.warmup()
 
