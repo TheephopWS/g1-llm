@@ -18,9 +18,12 @@ from typing import Optional
 
 from arguments_classes.module_arguments import ModuleArguments
 from arguments_classes.vad_arguments import VADHandlerArguments
+from arguments_classes.whisper_stt_arguments import WhisperSTTHandlerArguments
 from arguments_classes.parakeet_tdt_arguments import ParakeetTDTSTTHandlerArguments
 from arguments_classes.language_model_arguments import LanguageModelHandlerArguments
 from arguments_classes.parler_tts_arguments import ParlerTTSHandlerArguments
+from arguments_classes.socket_receiver_arguments import SocketReceiverArguments
+from arguments_classes.socket_sender_arguments import SocketSenderArguments
 
 import torch
 import nltk
@@ -63,7 +66,10 @@ def parse_arguments():
     parser = HfArgumentParser(
         (
             ModuleArguments,
+            SocketReceiverArguments,
+            SocketSenderArguments,
             VADHandlerArguments,
+            WhisperSTTHandlerArguments,
             ParakeetTDTSTTHandlerArguments,
             LanguageModelHandlerArguments,
             ParlerTTSHandlerArguments,
@@ -103,7 +109,10 @@ def overwrite_device_argument(common_device, *handler_kwargs):
 def main():
     (
         module_kwargs,
+        socket_receiver_kwargs,
+        socket_sender_kwargs,
         vad_handler_kwargs,
+        whisper_stt_handler_kwargs,
         parakeet_tdt_stt_handler_kwargs,
         language_model_handler_kwargs,
         parler_tts_handler_kwargs,
@@ -114,12 +123,14 @@ def main():
     # Override device across all handlers
     overwrite_device_argument(
         module_kwargs.device,
+        whisper_stt_handler_kwargs,
         parakeet_tdt_stt_handler_kwargs,
         language_model_handler_kwargs,
         parler_tts_handler_kwargs,
     )
 
     # Rename prefixed args
+    rename_args(whisper_stt_handler_kwargs, "stt")
     rename_args(parakeet_tdt_stt_handler_kwargs, "parakeet_tdt")
     rename_args(language_model_handler_kwargs, "lm")
     rename_args(parler_tts_handler_kwargs, "tts")
@@ -135,16 +146,38 @@ def main():
     lm_processed_queue = Queue()
     text_output_queue = Queue()
 
-    # --- Local audio streamer (mic + speakers) ---
-    from connections.local_audio_streamer import LocalAudioStreamer
+    # --- Comms: local or socket ---
+    if module_kwargs.mode == "local":
+        from connections.local_audio_streamer import LocalAudioStreamer
 
-    local_audio_streamer = LocalAudioStreamer(
-        input_queue=recv_audio_chunks_queue,
-        output_queue=send_audio_chunks_queue,
-        input_device=module_kwargs.input_device,
-        output_device=module_kwargs.output_device,
-    )
-    should_listen.set()
+        local_audio_streamer = LocalAudioStreamer(
+            input_queue=recv_audio_chunks_queue,
+            output_queue=send_audio_chunks_queue,
+            input_device=module_kwargs.input_device,
+            output_device=module_kwargs.output_device,
+        )
+        comms_handlers = [local_audio_streamer]
+        should_listen.set()
+    else:
+        from connections.socket_receiver import SocketReceiver
+        from connections.socket_sender import SocketSender
+
+        comms_handlers = [
+            SocketReceiver(
+                stop_event,
+                recv_audio_chunks_queue,
+                should_listen,
+                host=socket_receiver_kwargs.recv_host,
+                port=socket_receiver_kwargs.recv_port,
+                chunk_size=socket_receiver_kwargs.chunk_size,
+            ),
+            SocketSender(
+                stop_event,
+                send_audio_chunks_queue,
+                host=socket_sender_kwargs.send_host,
+                port=socket_sender_kwargs.send_port,
+            ),
+        ]
 
     # --- VAD ---
     from VAD.vad_handler import VADHandler
@@ -160,15 +193,25 @@ def main():
         setup_kwargs=vad_setup_kwargs,
     )
 
-    # --- STT: Parakeet TDT ---
-    from STT.parakeet_tdt_handler import ParakeetTDTSTTHandler
+    # --- STT ---
+    if module_kwargs.stt == "parakeet-tdt":
+        from STT.parakeet_tdt_handler import ParakeetTDTSTTHandler
 
-    stt = ParakeetTDTSTTHandler(
-        stop_event,
-        queue_in=spoken_prompt_queue,
-        queue_out=text_prompt_queue,
-        setup_kwargs=vars(parakeet_tdt_stt_handler_kwargs),
-    )
+        stt = ParakeetTDTSTTHandler(
+                stop_event,
+                queue_in=spoken_prompt_queue,
+                queue_out=text_prompt_queue,
+                setup_kwargs=vars(parakeet_tdt_stt_handler_kwargs),
+            )
+    else:
+        from STT.whisper_stt_handler import WhisperSTTHandler
+
+        stt = WhisperSTTHandler(
+            stop_event,
+            queue_in=spoken_prompt_queue,
+            queue_out=text_prompt_queue,
+            setup_kwargs=vars(whisper_stt_handler_kwargs),
+        )
 
     # --- LLM: Transformers ---
     from LLM.language_model import LanguageModelHandler
@@ -203,7 +246,7 @@ def main():
 
     # --- Build and run ---
     pipeline_manager = ThreadManager(
-        [local_audio_streamer, vad, stt, lm, lm_processor, tts]
+        [*comms_handlers, vad, stt, lm, lm_processor, tts]
     )
 
     shutdown_requested = [False]
