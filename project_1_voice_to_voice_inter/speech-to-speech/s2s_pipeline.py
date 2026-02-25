@@ -141,6 +141,8 @@ def main():
     local_audio_streamer = LocalAudioStreamer(
         input_queue=recv_audio_chunks_queue,
         output_queue=send_audio_chunks_queue,
+        input_device=module_kwargs.input_device,
+        output_device=module_kwargs.output_device,
     )
     should_listen.set()
 

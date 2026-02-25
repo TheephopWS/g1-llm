@@ -74,6 +74,8 @@ class ParlerTTSHandler(BaseHandler):
         framerate = self.model.audio_encoder.config.frame_rate
         self.play_steps = int(framerate * play_steps_s)
         self.blocksize = blocksize
+        self.sampling_rate = self.model.config.sampling_rate
+        logger.info(f"Parler TTS model sample rate: {self.sampling_rate}")
 
         if self.compile_mode not in (None, "default"):
             logger.warning("Torch compilation modes that capture CUDA graphs are not yet compatible with TTS. Reverting to 'default'")
@@ -166,7 +168,8 @@ class ParlerTTSHandler(BaseHandler):
             global pipeline_start
             if i == 0 and "pipeline_start" in globals():
                 logger.info(f"Time to first audio: {perf_counter() - pipeline_start:.3f}")
-            audio_chunk = librosa.resample(audio_chunk, orig_sr=44100, target_sr=16000)
+            logger.debug(f"TTS audio chunk {i}: shape={audio_chunk.shape}, min={audio_chunk.min():.4f}, max={audio_chunk.max():.4f}")
+            audio_chunk = librosa.resample(audio_chunk, orig_sr=self.sampling_rate, target_sr=16000)
             audio_chunk = (audio_chunk * 32768).astype(np.int16)
             for j in range(0, len(audio_chunk), self.blocksize):
                 yield np.pad(
