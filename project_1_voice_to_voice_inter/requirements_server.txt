@@ -1,0 +1,23 @@
+# Server Requirements (4090 Laptop)
+# =================================
+# Run: pip install -r requirements_server.txt
+
+# FastAPI and server
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+python-multipart>=0.0.6
+
+# Whisper STT (faster-whisper uses CTranslate2, more efficient)
+faster-whisper>=0.10.0
+
+# LLM client
+httpx>=0.24.0
+
+# TTS
+edge-tts>=6.1.0
+
+# Data validation
+pydantic>=2.0.0
+
+# Optional: for development
+# watchfiles>=0.19.0

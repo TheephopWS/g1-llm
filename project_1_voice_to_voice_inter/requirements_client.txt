@@ -1,0 +1,21 @@
+# Client Requirements (Robot/Orin or Test Laptop)
+# ================================================
+# Run: pip install -r requirements_client.txt
+
+# HTTP client
+requests>=2.31.0
+
+# WebSocket client (for streaming mode)
+websockets>=12.0
+
+# Audio recording
+sounddevice>=0.4.6
+soundfile>=0.12.0
+numpy>=1.24.0
+
+# Audio playback (choose one)
+pygame>=2.5.0
+# simpleaudio>=1.0.4  # Alternative if pygame doesn't work
+
+# Note: For Jetson Orin, you may need to install some packages from source
+# or use pre-built wheels for ARM64.
