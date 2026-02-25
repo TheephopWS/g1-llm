@@ -28,3 +28,11 @@ class ModuleArguments:
         default="info",
         metadata={"help": "Logging level. Example --log_level debug. Default is 'info'."},
     )
+    input_device: Optional[int] = field(
+        default=None,
+        metadata={"help": "Audio input device index (microphone). Run 'python -c \"import sounddevice; print(sounddevice.query_devices())\"' to list devices."},
+    )
+    output_device: Optional[int] = field(
+        default=None,
+        metadata={"help": "Audio output device index (speakers). Run 'python -c \"import sounddevice; print(sounddevice.query_devices())\"' to list devices."},
+    )
