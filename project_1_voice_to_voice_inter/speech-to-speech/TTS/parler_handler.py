@@ -5,7 +5,8 @@ import numpy as np
 import torch
 from transformers import AutoTokenizer
 from parler_tts import ParlerTTSForConditionalGeneration, ParlerTTSStreamer
-import librosa
+from scipy.signal import resample_poly
+from math import gcd
 import logging
 from rich.console import Console
 from utils.utils import next_power_of_2
@@ -75,14 +76,18 @@ class ParlerTTSHandler(BaseHandler):
         self.play_steps = int(framerate * play_steps_s)
         self.blocksize = blocksize
         self.sampling_rate = self.model.config.sampling_rate
-        logger.info(f"Parler TTS model sample rate: {self.sampling_rate}")
+        self.target_sr = 16000
+        # Pre-compute resampling ratio for scipy resample_poly (faster than librosa)
+        g = gcd(self.sampling_rate, self.target_sr)
+        self.resample_up = self.target_sr // g
+        self.resample_down = self.sampling_rate // g
+        logger.info(f"Parler TTS model sample rate: {self.sampling_rate}, resample ratio: {self.resample_up}/{self.resample_down}")
 
         if self.compile_mode not in (None, "default"):
             logger.warning("Torch compilation modes that capture CUDA graphs are not yet compatible with TTS. Reverting to 'default'")
             self.compile_mode = "default"
 
         if self.compile_mode:
-            self.model.generation_config.cache_implementation = "static"
             torch._dynamo.config.suppress_errors = True
             self.model.forward = torch.compile(self.model.forward, mode=self.compile_mode, fullgraph=False)
 
@@ -169,9 +174,8 @@ class ParlerTTSHandler(BaseHandler):
             global pipeline_start
             if i == 0 and "pipeline_start" in globals():
                 logger.info(f"Time to first audio: {perf_counter() - pipeline_start:.3f}")
-            logger.debug(f"TTS audio chunk {i}: shape={audio_chunk.shape}, min={audio_chunk.min():.4f}, max={audio_chunk.max():.4f}")
-            audio_chunk = librosa.resample(audio_chunk, orig_sr=self.sampling_rate, target_sr=16000)
-            audio_chunk = (audio_chunk * 32768).astype(np.int16)
+            audio_chunk = resample_poly(audio_chunk, self.resample_up, self.resample_down).astype(np.float32)
+            audio_chunk = np.clip(audio_chunk * 32768, -32768, 32767).astype(np.int16)
             for j in range(0, len(audio_chunk), self.blocksize):
                 yield np.pad(
                     audio_chunk[j : j + self.blocksize],

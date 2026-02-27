@@ -13,8 +13,8 @@ class ModuleArguments:
         metadata={"help": "Pipeline mode: 'local' or 'socket'. Default is 'socket'."},
     )
     stt: Optional[str] = field(
-        default="whisper",
-        metadata={"help": "STT engine: 'whisper' or 'parakeet-tdt'. Default is 'whisper'."},
+        default="parakeet-tdt",
+        metadata={"help": "STT engine: 'whisper' or 'parakeet-tdt'. Default is 'parakeet-tdt' (faster)."},
     )
     llm: Optional[str] = field(
         default="transformers",
@@ -35,4 +35,8 @@ class ModuleArguments:
     output_device: Optional[int] = field(
         default=None,
         metadata={"help": "Audio output device index (speakers). Run 'python -c \"import sounddevice; print(sounddevice.query_devices())\"' to list devices."},
+    )
+    simulate_actions: bool = field(
+        default=True,
+        metadata={"help": "If True, robot actions are printed but not executed. Set to False on the actual robot."},
     )

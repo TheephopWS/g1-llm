@@ -42,6 +42,12 @@ class WhisperSTTHandler(BaseHandler):
             model_name, torch_dtype=self.torch_dtype,
         ).to(device)
 
+        # Suppress forced_decoder_ids conflict warning
+        if hasattr(self.model.config, "forced_decoder_ids"):
+            self.model.config.forced_decoder_ids = None
+        if hasattr(self.model.generation_config, "forced_decoder_ids"):
+            self.model.generation_config.forced_decoder_ids = None
+
         if self.compile_mode:
             self.model.generation_config.cache_implementation = "static"
             self.model.forward = torch.compile(

@@ -45,6 +45,10 @@ except (LookupError, OSError):
 CURRENT_DIR = Path(__file__).resolve().parent
 os.environ["TORCHINDUCTOR_CACHE_DIR"] = os.path.join(CURRENT_DIR, "tmp")
 
+# Enable persistent torch inductor cache — avoids recompilation between runs
+torch._inductor.config.fx_graph_cache = True
+torch._inductor.config.fx_graph_remote_cache = False
+
 console = Console()
 logging.getLogger("numba").setLevel(logging.WARNING)
 
@@ -230,7 +234,10 @@ def main():
         stop_event,
         queue_in=lm_response_queue,
         queue_out=lm_processed_queue,
-        setup_kwargs={"text_output_queue": text_output_queue},
+        setup_kwargs={
+            "text_output_queue": text_output_queue,
+            "simulate_actions": module_kwargs.simulate_actions,
+        },
     )
 
     # --- TTS: Parler ---

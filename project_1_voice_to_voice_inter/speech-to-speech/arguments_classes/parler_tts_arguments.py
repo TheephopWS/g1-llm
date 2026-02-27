@@ -32,8 +32,8 @@ class ParlerTTSHandlerArguments:
         metadata={"help": "Voice description to guide TTS model."},
     )
     play_steps_s: float = field(
-        default=1.0,
-        metadata={"help": "Playback step interval in seconds."},
+        default=0.4,
+        metadata={"help": "Playback step interval in seconds. Lower = smoother but more overhead. Recommended: 0.3-0.5."},
     )
     max_prompt_pad_length: int = field(
         default=8,

@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 console = Console()
 
 TOOL_PATTERN = re.compile(r'\[TOOL:(\w+)(?:\|([^\]]+))?\]')
+ACTION_PATTERN = re.compile(r'\[ACTION:(\w+)(?:\|([^\]]+))?\]')
 
 WHISPER_LANGUAGE_TO_LLM_LANGUAGE = {
     "en": "english",
@@ -37,6 +38,7 @@ WHISPER_LANGUAGE_TO_LLM_LANGUAGE = {
 
 def parse_tool_calls(text):
     tools = []
+    # Parse [TOOL:name|key:val] format
     for match in TOOL_PATTERN.finditer(text):
         tool_name = match.group(1)
         params_str = match.group(2) or ""
@@ -47,7 +49,19 @@ def parse_tool_calls(text):
                     key, val = param.split(':', 1)
                     params[key] = val
         tools.append({"name": tool_name, "parameters": params})
-    clean_text = TOOL_PATTERN.sub('', text).strip()
+    # Parse [ACTION:name|key:val] format (robot actions)
+    for match in ACTION_PATTERN.finditer(text):
+        action_name = match.group(1)
+        params_str = match.group(2) or ""
+        params = {}
+        if params_str:
+            for param in params_str.split('|'):
+                if ':' in param:
+                    key, val = param.split(':', 1)
+                    params[key] = val
+        tools.append({"name": action_name, "parameters": params, "type": "action"})
+    clean_text = TOOL_PATTERN.sub('', text)
+    clean_text = ACTION_PATTERN.sub('', clean_text).strip()
     return clean_text, tools
 
 
@@ -141,10 +155,14 @@ class LanguageModelHandler(BaseHandler):
             printable_text += new_text
             sentences = sent_tokenize(printable_text)
             if len(sentences) > 1:
-                clean_text, tools = parse_tool_calls(sentences[0])
-                yield (clean_text, language_code, tools)
-                printable_text = new_text
+                # Yield all complete sentences, keep last (possibly incomplete) one
+                for sentence in sentences[:-1]:
+                    clean_text, tools = parse_tool_calls(sentence)
+                    yield (clean_text, language_code, tools)
+                printable_text = sentences[-1]
 
         self.chat.append({"role": "assistant", "content": generated_text})
-        clean_text, tools = parse_tool_calls(printable_text)
-        yield (clean_text, language_code, tools)
+        # Yield any remaining text
+        if printable_text.strip():
+            clean_text, tools = parse_tool_calls(printable_text)
+            yield (clean_text, language_code, tools)
