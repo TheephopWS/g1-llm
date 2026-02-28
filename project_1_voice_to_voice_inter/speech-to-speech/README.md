@@ -48,8 +48,8 @@ pip install -r requirements_STS.txt
 ## Usage
 
 The pipeline can be run in three ways:
-- ~~**Server/Client approach**: Models run on a server, and audio input/output are streamed from a client using TCP sockets.~~
-- ~~**WebSocket approach**: Models run on a server, and audio input/output are streamed from a client using WebSockets.~~
+- **Server/Client approach**: Models run on a server, and audio input/output are streamed from a client using TCP sockets.
+- **WebSocket approach**: Models run on a server, and audio input/output are streamed from a client using WebSockets.
 - **Local approach**: Runs locally.
 
 ### Recommended setup 
