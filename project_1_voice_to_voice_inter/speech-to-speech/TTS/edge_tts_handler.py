@@ -63,7 +63,7 @@ class EdgeTTSHandler(BaseHandler):
         self.blocksize = blocksize
 
         try:
-            import edge_tts
+            import edge_tts  # noqa: F401
         except ImportError:
             raise ImportError(
                 "edge_tts is required for EdgeTTSHandler. "
@@ -173,7 +173,7 @@ class EdgeTTSHandler(BaseHandler):
             )
 
             for i in range(0, len(audio_int16), self.blocksize):
-                block = audio_int16[i : i + self.blocksize]
+                block = audio_int16[i:i + self.blocksize]
                 if len(block) < self.blocksize:
                     block = np.pad(block, (0, self.blocksize - len(block)))
                 yield block
