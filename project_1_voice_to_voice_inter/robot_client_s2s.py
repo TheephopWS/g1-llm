@@ -1,42 +1,3 @@
-"""
-Socket-Based Robot Client with Audio Caching for S2S Pipeline
-=============================================================
-Smooth, lag-free voice interaction via cached audio playback.
-
-Interaction cycle (like robot_client.py):
-  1. Stream mic audio -> pipeline (pipeline VAD detects speech)
-  2. Cache TTS audio response into memory buffer
-  3. Play complete cached audio smoothly (no chunk-by-chunk jitter)
-  4. Execute robot actions from command channel
-
-During playback, mic sends silence to keep the pipeline socket alive
-without triggering VAD (half-duplex echo prevention).
-
-Architecture:
-   Robot Client (this)              S2S Pipeline (GPU server)
-  ┌──────────────────────┐        ┌─────────────────────────────┐
-  │ Mic ─> audio :12345 ────────> SocketReceiver -> VAD -> STT  │
-  │ (silence during play)│        │               -> LLM        │
-  │                      │        │                             │
-  │ Cache <- audio :12346 <─────── TTS -> SocketSender          │
-  │ sd.play() smooth     │        │                             │
-  │                      │        │                             │
-  │ Actions <- cmd :12347 <─────── LMOutputProcessor            │
-  │ UnitreeDispatcher    │        │   -> SocketCommandSender    │
-  └──────────────────────┘        └─────────────────────────────┘
-
-Usage:
-  # 1) Start S2S pipeline (GPU server):
-  cd speech-to-speech
-  python s2s_pipeline.py --mode socket --device cuda
-
-  # 2) Start this client:
-  python robot_client_s2s.py --host localhost
-  python robot_client_s2s.py --host 192.168.1.100 --no-simulate
-
-Requirements: sounddevice, numpy
-"""
-
 import argparse
 import glob
 import json
@@ -90,12 +51,7 @@ DEFAULT_ACTION = "NONE"
 
 
 class UnitreeActionDispatcher:
-    """
-    Dispatches actions to Unitree G1 robot.
-
-    When simulate=True, actions are logged but not executed.
-    Replace placeholder methods with actual Unitree G1 SDK calls.
-    """
+    # When simulate=True, actions are logged but not executed.
 
     def __init__(self, simulate: bool = True):
         self.simulate = simulate
@@ -149,12 +105,7 @@ class UnitreeActionDispatcher:
         return True
 
 
-# =============================================================================
-# Robot Status Provider
-# =============================================================================
 class RobotStatusProvider:
-    """Mock robot status. Replace with real Unitree G1 SDK queries."""
-
     def __init__(self):
         self.battery = 0.85
         self.location = "home"
@@ -173,30 +124,27 @@ class RobotStatusProvider:
         self.last_action = action
 
 
-# =============================================================================
-# Socket Robot Client — Cached Audio Playback
-# =============================================================================
 class SocketRobotClient:
     """
     Socket-based robot client with cached audio playback.
 
     Audio flow:
-      - Mic streams continuously to pipeline (pipeline VAD handles speech detection)
-      - TTS audio chunks are accumulated into a memory buffer
-      - When a response is complete (no audio for cache_timeout), the buffer is
+        - Mic streams continuously to pipeline (pipeline VAD handles speech detection)
+        - TTS audio chunks are accumulated into a memory buffer
+        - When a response is complete (no audio for cache_timeout), the buffer is
         played smoothly using sd.play() — no chunk-by-chunk callback jitter
-      - During playback, mic sends silence (half-duplex echo gating)
+        - During playback, mic sends silence (half-duplex echo gating)
 
     Connections:
-      1. Audio send socket  — mic -> pipeline
-      2. Audio recv socket  — pipeline -> audio cache -> smooth playback
-      3. Command recv socket — pipeline -> action dispatch
+        1. Audio send socket  — mic -> pipeline
+        2. Audio recv socket  — pipeline -> audio cache -> smooth playback
+        3. Command recv socket — pipeline -> action dispatch
     """
 
     def __init__(self, config: ClientConfig):
         self.config = config
         self.stop_event = threading.Event()
-        self._is_playing = threading.Event()  # Set while playing cached audio
+        self._is_playing = threading.Event()
         self._send_queue: Queue = Queue()
 
         self.action_dispatcher = UnitreeActionDispatcher(simulate=config.simulate)
@@ -216,13 +164,10 @@ class SocketRobotClient:
             "start_time": 0.0,
         }
 
-        # Create audio cache directory and clean old files
         Path(config.audio_cache_dir).mkdir(parents=True, exist_ok=True)
         self._clear_old_cache()
 
-    # ---- Connection setup ---------------------------------------------------
     def _connect(self):
-        """Connect to all three S2S pipeline sockets."""
         host = self.config.host
 
         logger.info(f"Connecting to S2S pipeline at {host}...")
