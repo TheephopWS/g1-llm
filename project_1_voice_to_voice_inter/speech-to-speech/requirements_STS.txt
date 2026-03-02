@@ -1,6 +1,5 @@
-torch
-torchaudio
 nltk
+psutil
 rich
 transformers
 parler_tts

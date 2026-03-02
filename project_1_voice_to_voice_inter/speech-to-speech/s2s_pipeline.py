@@ -24,6 +24,7 @@ from arguments_classes.language_model_arguments import LanguageModelHandlerArgum
 from arguments_classes.parler_tts_arguments import ParlerTTSHandlerArguments
 from arguments_classes.socket_receiver_arguments import SocketReceiverArguments
 from arguments_classes.socket_sender_arguments import SocketSenderArguments
+from arguments_classes.socket_command_sender_arguments import SocketCommandSenderArguments
 
 import torch
 import nltk
@@ -72,6 +73,7 @@ def parse_arguments():
             ModuleArguments,
             SocketReceiverArguments,
             SocketSenderArguments,
+            SocketCommandSenderArguments,
             VADHandlerArguments,
             WhisperSTTHandlerArguments,
             ParakeetTDTSTTHandlerArguments,
@@ -115,6 +117,7 @@ def main():
         module_kwargs,
         socket_receiver_kwargs,
         socket_sender_kwargs,
+        socket_command_sender_kwargs,
         vad_handler_kwargs,
         whisper_stt_handler_kwargs,
         parakeet_tdt_stt_handler_kwargs,
@@ -182,6 +185,17 @@ def main():
                 port=socket_sender_kwargs.send_port,
             ),
         ]
+
+        # Command sender: forwards text_output_queue (actions, text) to robot
+        from connections.socket_command_sender import SocketCommandSender
+
+        command_sender = SocketCommandSender(
+            stop_event,
+            text_output_queue,
+            host=socket_command_sender_kwargs.cmd_host,
+            port=socket_command_sender_kwargs.cmd_port,
+        )
+        comms_handlers.append(command_sender)
 
     # --- VAD ---
     from VAD.vad_handler import VADHandler

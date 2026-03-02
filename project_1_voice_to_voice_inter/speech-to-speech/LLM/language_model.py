@@ -82,7 +82,7 @@ class LanguageModelHandler(BaseHandler):
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForCausalLM.from_pretrained(
-            model_name, torch_dtype=torch_dtype, trust_remote_code=True
+            model_name, torch_dtype=torch_dtype, trust_remote_code=True, attn_implementation="sdpa"
         ).to(device)
         self.pipe = pipeline(
             "text-generation", model=self.model, tokenizer=self.tokenizer, device=device
