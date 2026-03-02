@@ -4,8 +4,6 @@ from typing import Optional
 
 @dataclass
 class ParakeetTDTSTTHandlerArguments:
-    """Arguments for the Parakeet TDT STT handler (CUDA/CPU via nano-parakeet)."""
-
     parakeet_tdt_model_name: Optional[str] = field(
         default=None,
         metadata={"help": "Model name. Default: 'nvidia/parakeet-tdt-0.6b-v3' for CUDA/CPU."},

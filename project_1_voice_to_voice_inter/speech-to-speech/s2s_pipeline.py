@@ -1,11 +1,3 @@
-"""
-Minimal local Parakeet CUDA pipeline.
-
-Usage:
-    python s2s_pipeline.py
-    python s2s_pipeline.py --device cuda --lm_model_name microsoft/Phi-3-mini-4k-instruct
-"""
-
 import logging
 import os
 import sys

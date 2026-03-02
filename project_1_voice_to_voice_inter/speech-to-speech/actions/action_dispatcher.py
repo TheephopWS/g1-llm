@@ -1,11 +1,3 @@
-"""
-Unitree G1 Action Dispatcher for speech-to-speech pipeline.
-
-Follows the same interface as UnitreeActionDispatcher in robot_client.py.
-When running locally on the laptop, actions are simulated (printed).
-When deployed on the Jetson Orin, replace simulate=False and add real SDK calls.
-"""
-
 import logging
 from typing import Any, Callable, Dict
 
@@ -69,9 +61,7 @@ class UnitreeActionDispatcher:
             logger.error(f"Error executing {action}: {e}")
             return False
 
-    # -------------------------------------------------------------------------
     # Action Implementations - Replace with actual Unitree G1 SDK calls
-    # -------------------------------------------------------------------------
     def _action_none(self, params: Dict) -> bool:
         if self.simulate:
             logger.info("[ACTION] NONE - No action taken")

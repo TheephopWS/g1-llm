@@ -6,9 +6,6 @@ logger = logging.getLogger(__name__)
 
 
 class BaseHandler:
-    """
-    Base class for pipeline parts. Each part of the pipeline has an input and an output queue.
-    """
 
     def __init__(self, stop_event, queue_in, queue_out, setup_args=(), setup_kwargs={}):
         self.stop_event = stop_event

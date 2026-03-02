@@ -7,8 +7,6 @@ console = Console()
 
 
 class SocketReceiver:
-    """Handles reception of audio packets from the client."""
-
     def __init__(
         self,
         stop_event,
