@@ -14,6 +14,7 @@ from rich.console import Console
 import logging
 from nltk import sent_tokenize
 from typing import Dict
+from actions.allowed_actions import ALLOWED_ACTIONS, DEFAULT_ACTION
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -35,14 +36,6 @@ WHISPER_LANGUAGE_TO_LLM_LANGUAGE = {
     "it": "italian",
     "nl": "dutch",
 }
-
-ALLOWED_ACTIONS: Dict[str, str] = {
-    "NONE": "Do nothing / no physical action.",
-    "MOVE_FORWARD": "Walk forward toward the user.",
-    "DANCE": "Perform a dance routine.",
-}
-
-DEFAULT_ACTION = "NONE"
 
 
 def parse_tool_calls(text):
@@ -71,6 +64,12 @@ def parse_tool_calls(text):
         tools.append({"name": action_name, "parameters": params, "type": "action"})
     clean_text = TOOL_PATTERN.sub('', text)
     clean_text = ACTION_PATTERN.sub('', clean_text).strip()
+
+    # Ensure there is always an action — default to NONE if the LLM omitted one
+    has_action = any(t.get("type") == "action" or t.get("name", "").upper() in ALLOWED_ACTIONS for t in tools)
+    if not has_action:
+        tools.append({"name": DEFAULT_ACTION, "parameters": {}, "type": "action"})
+
     return clean_text, tools
 
 
@@ -84,23 +83,24 @@ class LanguageModelHandler(BaseHandler):
         user_role="user",
         chat_size=1,
         init_chat_role=None,
-        init_chat_prompt="""
-        You are a responsive robot assistant controlling a Unitree G1 humanoid robot. "
-            "You can perform physical actions by including an action tag in your response.\n\n"
+        init_chat_prompt=(
+            "You are a responsive robot assistant controlling a Unitree G1 humanoid robot.\n\n"
             "AVAILABLE ACTIONS:\n"
-            "- NONE: No physical action. Use for normal conversation.\n"
-            "- MOVE_FORWARD: Walk forward toward the user.\n"
-            "- DANCE: Perform a dance routine.\n\n"
-            "FORMAT: Include [ACTION:ACTION_NAME] at the END of your spoken response when an action is needed.\n"
-            "Example: 'Sure, I will walk to you! [ACTION:MOVE_FORWARD]'\n"
-            "Example: 'Let me dance for you! [ACTION:DANCE]'\n"
-            "Example: 'Hello! How can I help you?'\n\n"
+            + "\n".join(f"- {k}: {v}" for k, v in ALLOWED_ACTIONS.items()) + "\n\n"
+            "OUTPUT FORMAT:\n"
+            "Your response MUST end with an [ACTION:ACTION_NAME] tag. "
+            "Always choose an action, even if it is NONE.\n\n"
+            "EXAMPLES:\n"
+            "- 'Sure, I will walk to you! [ACTION:MOVE_FORWARD]'\n"
+            "- 'Let me dance for you! [ACTION:DANCE]'\n"
+            "- 'Hello! How can I help you? [ACTION:NONE]'\n\n"
             "RULES:\n"
-            "1. Keep responses under 20 words. Be concise.\n"
-            "2. Only use actions from the list above.\n"
-            "3. If no action is needed, do NOT include any action tag.\n"
-            "4. The action tag will be removed before speaking - it is not spoken aloud.
-        """,
+            "1. Keep spoken responses under 20 words. Be concise.\n"
+            "2. ALWAYS include exactly one [ACTION:...] tag at the END.\n"
+            "3. Only use actions from the list above.\n"
+            "4. The action tag is removed before speaking — it is not spoken aloud.\n"
+            "5. Reply in Chinese (廣東話 or 普通話 matching user) unless asked otherwise."
+        ),
     ):
         self.device = device
         self.torch_dtype = getattr(torch, torch_dtype)

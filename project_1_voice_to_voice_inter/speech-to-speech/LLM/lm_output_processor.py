@@ -27,7 +27,6 @@ class LMOutputProcessor(BaseHandler):
             else:
                 other_tools.append(tool)
 
-        # Dispatch robot actions
         for action in actions:
             action_name = action["name"].upper()
             params = action.get("parameters", {})
@@ -36,10 +35,8 @@ class LMOutputProcessor(BaseHandler):
             if not success:
                 logger.warning(f"Action {action_name} failed")
 
-        # Build message for text_output_queue
         message = {"type": "assistant_text", "text": text_chunk}
-        if actions:
-            message["actions"] = [{"action": a["name"].upper(), "params": a.get("parameters", {})} for a in actions]
+        message["actions"] = [{"action": a["name"].upper(), "params": a.get("parameters", {})} for a in actions]
         if other_tools:
             message["tools"] = other_tools
         self.text_output_queue.put(message)
