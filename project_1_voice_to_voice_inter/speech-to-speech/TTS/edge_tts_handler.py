@@ -71,11 +71,11 @@ class EdgeTTSHandler(BaseHandler):
             )
 
         try:
-            from pydub import AudioSegment  # noqa: F401
+            import av  # noqa: F401
         except ImportError:
             raise ImportError(
-                "pydub is required for EdgeTTSHandler to decode MP3. "
-                "Install with: pip install pydub"
+                "PyAV is required for EdgeTTSHandler to decode MP3. "
+                "Install with: pip install av"
             )
 
         logger.info(
@@ -108,15 +108,26 @@ class EdgeTTSHandler(BaseHandler):
         return mp3_buffer.getvalue()
 
     def _decode_mp3_to_int16(self, mp3_bytes: bytes) -> np.ndarray:
-        from pydub import AudioSegment
+        import av
 
-        audio = AudioSegment.from_mp3(io.BytesIO(mp3_bytes))
+        container = av.open(io.BytesIO(mp3_bytes), format="mp3")
+        resampler = av.AudioResampler(
+            format="s16",     # signed 16-bit
+            layout="mono",
+            rate=self.target_sr,
+        )
 
-        # Convert to mono, target sample rate, 16-bit
-        audio = audio.set_channels(1).set_frame_rate(self.target_sr).set_sample_width(2)
+        frames = []
+        for frame in container.decode(audio=0):
+            resampled = resampler.resample(frame)
+            for r in resampled:
+                array = r.to_ndarray().flatten()
+                frames.append(array)
+        container.close()
 
-        samples = np.frombuffer(audio.raw_data, dtype=np.int16)
-        return samples
+        if not frames:
+            return np.array([], dtype=np.int16)
+        return np.concatenate(frames).astype(np.int16)
 
     def process(self, llm_sentence):
         """
