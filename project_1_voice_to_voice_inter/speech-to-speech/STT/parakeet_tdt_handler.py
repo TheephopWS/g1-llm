@@ -1,9 +1,3 @@
-"""
-Parakeet TDT Speech-to-Text Handler (CUDA/CPU only via nano-parakeet)
-
-Uses nvidia/parakeet-tdt-0.6b-v3 for high-quality multilingual ASR.
-"""
-
 import logging
 from time import perf_counter
 from baseHandler import BaseHandler

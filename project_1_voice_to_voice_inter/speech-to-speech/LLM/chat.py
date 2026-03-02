@@ -1,6 +1,4 @@
 class Chat:
-    """Handles the chat buffer to avoid OOM issues."""
-
     def __init__(self, size):
         self.size = size
         self.init_chat_message = None

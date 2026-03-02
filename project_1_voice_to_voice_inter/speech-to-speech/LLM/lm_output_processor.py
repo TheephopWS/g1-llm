@@ -1,10 +1,3 @@
-"""
-LLM Output Processor - extracts action commands and forwards clean text to TTS.
-
-Actions matching ALLOWED_ACTIONS are dispatched to the UnitreeActionDispatcher.
-Clean text (with action tags stripped) is forwarded to TTS for speech output.
-"""
-
 import logging
 from baseHandler import BaseHandler
 from actions.action_dispatcher import UnitreeActionDispatcher
@@ -14,14 +7,6 @@ logger = logging.getLogger(__name__)
 
 
 class LMOutputProcessor(BaseHandler):
-    """
-    Input: (text, language_code, tools) tuples from LLM
-    Output: (text, language_code) tuples to TTS
-    Side effects:
-      - Dispatches robot actions via UnitreeActionDispatcher
-      - Sends messages to text_output_queue
-    """
-
     def setup(self, text_output_queue, simulate_actions=True):
         self.text_output_queue = text_output_queue
         self.action_dispatcher = UnitreeActionDispatcher(simulate=simulate_actions)
@@ -42,7 +27,6 @@ class LMOutputProcessor(BaseHandler):
             else:
                 other_tools.append(tool)
 
-        # Dispatch robot actions
         for action in actions:
             action_name = action["name"].upper()
             params = action.get("parameters", {})
@@ -51,10 +35,8 @@ class LMOutputProcessor(BaseHandler):
             if not success:
                 logger.warning(f"Action {action_name} failed")
 
-        # Build message for text_output_queue
         message = {"type": "assistant_text", "text": text_chunk}
-        if actions:
-            message["actions"] = [{"action": a["name"].upper(), "params": a.get("parameters", {})} for a in actions]
+        message["actions"] = [{"action": a["name"].upper(), "params": a.get("parameters", {})} for a in actions]
         if other_tools:
             message["tools"] = other_tools
         self.text_output_queue.put(message)

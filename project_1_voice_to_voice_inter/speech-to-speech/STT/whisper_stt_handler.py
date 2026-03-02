@@ -17,8 +17,6 @@ SUPPORTED_LANGUAGES = [
 
 
 class WhisperSTTHandler(BaseHandler):
-    """Handles Speech To Text using a Whisper model."""
-
     def setup(
         self,
         model_name="distil-whisper/distil-large-v3",

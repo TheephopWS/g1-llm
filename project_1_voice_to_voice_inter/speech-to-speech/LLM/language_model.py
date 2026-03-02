@@ -13,6 +13,8 @@ from baseHandler import BaseHandler
 from rich.console import Console
 import logging
 from nltk import sent_tokenize
+from typing import Dict
+from actions.allowed_actions import ALLOWED_ACTIONS, DEFAULT_ACTION, build_tool_prompt
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -62,6 +64,12 @@ def parse_tool_calls(text):
         tools.append({"name": action_name, "parameters": params, "type": "action"})
     clean_text = TOOL_PATTERN.sub('', text)
     clean_text = ACTION_PATTERN.sub('', clean_text).strip()
+
+    # Ensure there is always an action — default to NONE if the LLM omitted one
+    has_action = any(t.get("type") == "action" or t.get("name", "").upper() in ALLOWED_ACTIONS for t in tools)
+    if not has_action:
+        tools.append({"name": DEFAULT_ACTION, "parameters": {}, "type": "action"})
+
     return clean_text, tools
 
 
@@ -75,14 +83,14 @@ class LanguageModelHandler(BaseHandler):
         user_role="user",
         chat_size=1,
         init_chat_role=None,
-        init_chat_prompt="You are a helpful AI assistant.",
+        init_chat_prompt=build_tool_prompt(),
     ):
         self.device = device
         self.torch_dtype = getattr(torch, torch_dtype)
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForCausalLM.from_pretrained(
-            model_name, torch_dtype=torch_dtype, trust_remote_code=True
+            model_name, torch_dtype=torch_dtype, trust_remote_code=True, attn_implementation="sdpa"
         ).to(device)
         self.pipe = pipeline(
             "text-generation", model=self.model, tokenizer=self.tokenizer, device=device

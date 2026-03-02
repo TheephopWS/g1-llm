@@ -5,8 +5,6 @@ logger = logging.getLogger(__name__)
 
 
 class ThreadManager:
-    """Manages multiple threads used to execute given handler tasks."""
-
     def __init__(self, handlers):
         self.handlers = handlers
         self.threads = []

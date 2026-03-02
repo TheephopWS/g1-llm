@@ -1,12 +1,16 @@
-torch
-torchaudio
 nltk
+psutil
 rich
 transformers
-parler_tts
 librosa
 langdetect
 nano-parakeet>=0.1.0  # For Parakeet TDT on CUDA/CPU (NeMo-free)
 sounddevice
 numpy
 hf_xet
+av # For audio I/O, replacing ffmpeg
+pydub
+
+# TTS
+edge-tts>=6.1.0
+parler_tts

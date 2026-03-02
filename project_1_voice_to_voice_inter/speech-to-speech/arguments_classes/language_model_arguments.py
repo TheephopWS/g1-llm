@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from actions.allowed_actions import build_tool_prompt
 
 
 @dataclass
@@ -24,25 +25,13 @@ class LanguageModelHandlerArguments:
         metadata={"help": "Initial role for setting up chat context."},
     )
     init_chat_prompt: str = field(
-        default=(
-            "You are a responsive robot assistant controlling a Unitree G1 humanoid robot. "
-            "You can perform physical actions by including an action tag in your response.\n\n"
-            "AVAILABLE ACTIONS:\n"
-            "- NONE: No physical action. Use for normal conversation.\n"
-            "- MOVE_FORWARD: Walk forward toward the user.\n"
-            "- DANCE: Perform a dance routine.\n\n"
-            "FORMAT: Include [ACTION:ACTION_NAME] at the END of your spoken response when an action is needed.\n"
-            "Example: 'Sure, I will walk to you! [ACTION:MOVE_FORWARD]'\n"
-            "Example: 'Let me dance for you! [ACTION:DANCE]'\n"
-            "Example: 'Hello! How can I help you?'\n\n"
-            "RULES:\n"
-            "1. Keep responses under 20 words. Be concise.\n"
-            "2. Only use actions from the list above.\n"
-            "3. If no action is needed, do NOT include any action tag.\n"
-            "4. The action tag will be removed before speaking - it is not spoken aloud."
-        ),
-        metadata={"help": "Initial chat prompt with robot action instructions."},
+        default=None,
+        metadata={"help": "Initial chat prompt. Defaults to build_tool_prompt() with pipeline + choose_action tool."},
     )
+
+    def __post_init__(self):
+        if self.init_chat_prompt is None:
+            self.init_chat_prompt = build_tool_prompt()
     lm_gen_max_new_tokens: int = field(
         default=128,
         metadata={"help": "Max new tokens to generate. Default is 128."},
