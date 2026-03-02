@@ -38,6 +38,7 @@ Requirements: sounddevice, numpy
 """
 
 import argparse
+import glob
 import json
 import logging
 import os
@@ -45,9 +46,9 @@ import signal
 import socket
 import struct
 import sys
-import tempfile
 import threading
 import time
+import wave
 from dataclasses import dataclass
 from pathlib import Path
 from queue import Queue, Empty
@@ -57,9 +58,6 @@ import numpy as np
 import sounddevice as sd
 
 
-# =============================================================================
-# Logging
-# =============================================================================
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -67,9 +65,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# =============================================================================
-# Configuration
-# =============================================================================
 @dataclass
 class ClientConfig:
     host: str = "localhost"
@@ -82,11 +77,9 @@ class ClientConfig:
     simulate: bool = True        # Simulate actions (True=log only)
     cache_timeout: float = 0.8   # Seconds of silence before flushing audio cache
     audio_cache_dir: str = "./audio_cache"  # Directory for cached audio files
+    max_cache_files: int = 20     # Max cached .wav files to keep (0=unlimited)
 
 
-# =============================================================================
-# Allowed Actions (mirrors speech-to-speech/actions/allowed_actions.py)
-# =============================================================================
 ALLOWED_ACTIONS: Dict[str, str] = {
     "NONE": "Do nothing / no physical action.",
     "MOVE_FORWARD": "Walk forward toward the user.",
@@ -96,9 +89,6 @@ ALLOWED_ACTIONS: Dict[str, str] = {
 DEFAULT_ACTION = "NONE"
 
 
-# =============================================================================
-# UnitreeActionDispatcher
-# =============================================================================
 class UnitreeActionDispatcher:
     """
     Dispatches actions to Unitree G1 robot.
@@ -226,8 +216,9 @@ class SocketRobotClient:
             "start_time": 0.0,
         }
 
-        # Create audio cache directory
+        # Create audio cache directory and clean old files
         Path(config.audio_cache_dir).mkdir(parents=True, exist_ok=True)
+        self._clear_old_cache()
 
     # ---- Connection setup ---------------------------------------------------
     def _connect(self):
@@ -253,15 +244,7 @@ class SocketRobotClient:
 
         logger.info("All sockets connected!")
 
-    # ---- Mic input ----------------------------------------------------------
     def _mic_callback(self, indata, frames, time_info, status):
-        """
-        Sounddevice mic callback.
-        
-        During playback: sends silence to keep pipeline socket alive without
-        triggering VAD (half-duplex echo gating).
-        Otherwise: sends real mic audio.
-        """
         if self._is_playing.is_set():
             # Send silence during playback to keep SocketReceiver unblocked
             self._send_queue.put(b"\x00" * len(bytes(indata)))
@@ -269,7 +252,6 @@ class SocketRobotClient:
             self._send_queue.put(bytes(indata))
 
     def _mic_send_worker(self):
-        """Send mic audio (or silence) to S2S pipeline continuously."""
         assert self._send_socket is not None
         logger.debug("Mic send thread started")
 
@@ -285,7 +267,6 @@ class SocketRobotClient:
                 logger.warning("Audio send socket disconnected")
                 break
 
-    # ---- Audio cache & playback ---------------------------------------------
     def _audio_cache_worker(self):
         """
         Receive TTS audio chunks and cache them into a buffer.
@@ -336,12 +317,6 @@ class SocketRobotClient:
             self._play_cached_audio(bytes(buffer))
 
     def _play_cached_audio(self, audio_bytes: bytes):
-        """
-        Play cached TTS audio smoothly.
-
-        Converts raw int16 bytes -> numpy float32 -> sd.play() (blocking).
-        Also saves to disk cache for debugging/replay.
-        """
         if len(audio_bytes) < 4:
             return
 
@@ -357,18 +332,21 @@ class SocketRobotClient:
             f"{duration:.2f}s ({len(audio_bytes)} bytes)"
         )
 
-        # Save to disk cache (optional, useful for debugging)
         try:
             cache_path = os.path.join(
                 self.config.audio_cache_dir,
-                f"response_{self._interaction_count:04d}.raw",
+                f"response_{self._interaction_count:04d}.wav",
             )
-            with open(cache_path, "wb") as f:
-                f.write(audio_bytes)
+            with wave.open(cache_path, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)  # int16 = 2 bytes
+                wf.setframerate(self.config.recv_rate)
+                wf.writeframes(audio_bytes)
+            self._clear_old_cache()
         except Exception as e:
             logger.debug(f"Cache save failed (non-critical): {e}")
 
-        # Smooth playback — mute mic during play
+        # mute mic during play
         self._is_playing.set()
         try:
             sd.play(audio_float, samplerate=self.config.recv_rate, blocking=True)
@@ -377,19 +355,42 @@ class SocketRobotClient:
         finally:
             self._is_playing.clear()
 
-    # ---- Command channel ----------------------------------------------------
-    def _command_recv_worker(self):
-        """
-        Receive action/text commands from S2S pipeline.
+    def _clear_old_cache(self):
+        if self.config.max_cache_files <= 0:
+            return
 
-        Protocol: 4-byte big-endian length prefix + JSON bytes.
-        """
+        cache_dir = self.config.audio_cache_dir
+        try:
+            files = []
+            for ext in ("*.wav", "*.raw"):
+                files.extend(glob.glob(os.path.join(cache_dir, ext)))
+
+            if len(files) <= self.config.max_cache_files:
+                return
+
+            files.sort(key=os.path.getmtime)
+            to_delete = files[: len(files) - self.config.max_cache_files]
+            for f in to_delete:
+                try:
+                    os.remove(f)
+                    logger.debug(f"Cleaned old cache: {os.path.basename(f)}")
+                except OSError:
+                    pass
+
+            if to_delete:
+                logger.info(
+                    f"Cache cleanup: removed {len(to_delete)} old file(s), "
+                    f"keeping {self.config.max_cache_files}"
+                )
+        except Exception as e:
+            logger.debug(f"Cache cleanup failed (non-critical): {e}")
+
+    def _command_recv_worker(self):
         assert self._cmd_socket is not None
         logger.debug("Command recv thread started")
 
         while not self.stop_event.is_set():
             try:
-                # Read 4-byte length header
                 header = self._recv_exact(self._cmd_socket, 4)
                 if header is None:
                     logger.warning("Command socket closed")
@@ -416,7 +417,6 @@ class SocketRobotClient:
                 break
 
     def _handle_command(self, message: Dict[str, Any]):
-        """Process a command message from the S2S pipeline."""
         msg_type = message.get("type", "")
 
         if msg_type == "speech_started":
@@ -432,7 +432,6 @@ class SocketRobotClient:
             if text:
                 print(f"  ASSISTANT: {text}")
 
-            # Dispatch robot actions immediately (don't wait for playback)
             for action_info in actions:
                 action_name = action_info.get("action", "NONE")
                 params = action_info.get("params", {})
@@ -448,7 +447,6 @@ class SocketRobotClient:
         else:
             logger.debug(f"Unknown command type: {msg_type}")
 
-    # ---- Socket helpers -----------------------------------------------------
     @staticmethod
     def _recv_exact(conn: socket.socket, size: int) -> Optional[bytes]:
         """Receive exactly `size` bytes from a socket."""
@@ -463,7 +461,6 @@ class SocketRobotClient:
             data += packet
         return data
 
-    # ---- Main run loop ------------------------------------------------------
     def run(self):
         """
         Start the client.
@@ -575,12 +572,9 @@ class SocketRobotClient:
         print("-" * 40)
 
 
-# =============================================================================
-# Main
-# =============================================================================
 def main():
     parser = argparse.ArgumentParser(
-        description="Socket-based robot client with cached audio playback for the S2S pipeline",
+        description="Socket-based robot client for the S2S pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -601,6 +595,8 @@ Examples:
                         help="Seconds of silence before flushing audio cache (default: 0.8)")
     parser.add_argument("--cache-dir", default="./audio_cache",
                         help="Directory for cached audio files (default: ./audio_cache)")
+    parser.add_argument("--max-cache", type=int, default=20,
+                        help="Max cached .wav files to keep, 0=unlimited (default: 20)")
 
     args = parser.parse_args()
 
@@ -615,6 +611,7 @@ Examples:
         simulate=not args.no_simulate,
         cache_timeout=args.cache_timeout,
         audio_cache_dir=args.cache_dir,
+        max_cache_files=args.max_cache,
     )
 
     client = SocketRobotClient(config)

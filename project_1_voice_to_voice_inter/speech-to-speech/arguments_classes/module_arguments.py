@@ -21,8 +21,8 @@ class ModuleArguments:
         metadata={"help": "LLM engine: 'transformers'. Default is 'transformers'."},
     )
     tts: Optional[str] = field(
-        default="parler",
-        metadata={"help": "TTS engine: 'parler'. Default is 'parler'."},
+        default="edge",
+        metadata={"help": "TTS engine: 'edge' or 'parler'. Default is 'edge' (no GPU needed)."},
     )
     log_level: str = field(
         default="info",

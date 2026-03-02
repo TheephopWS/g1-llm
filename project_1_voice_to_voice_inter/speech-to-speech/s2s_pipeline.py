@@ -14,6 +14,7 @@ from arguments_classes.whisper_stt_arguments import WhisperSTTHandlerArguments
 from arguments_classes.parakeet_tdt_arguments import ParakeetTDTSTTHandlerArguments
 from arguments_classes.language_model_arguments import LanguageModelHandlerArguments
 from arguments_classes.parler_tts_arguments import ParlerTTSHandlerArguments
+from arguments_classes.edge_tts_arguments import EdgeTTSHandlerArguments
 from arguments_classes.socket_receiver_arguments import SocketReceiverArguments
 from arguments_classes.socket_sender_arguments import SocketSenderArguments
 from arguments_classes.socket_command_sender_arguments import SocketCommandSenderArguments
@@ -71,6 +72,7 @@ def parse_arguments():
             ParakeetTDTSTTHandlerArguments,
             LanguageModelHandlerArguments,
             ParlerTTSHandlerArguments,
+            EdgeTTSHandlerArguments,
         )
     )
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
@@ -115,6 +117,7 @@ def main():
         parakeet_tdt_stt_handler_kwargs,
         language_model_handler_kwargs,
         parler_tts_handler_kwargs,
+        edge_tts_handler_kwargs,
     ) = parse_arguments()
 
     setup_logger(module_kwargs.log_level)
@@ -246,16 +249,33 @@ def main():
         },
     )
 
-    # --- TTS: Parler ---
-    from TTS.parler_handler import ParlerTTSHandler
+    # --- TTS ---
+    if module_kwargs.tts == "parler":
+        from TTS.parler_handler import ParlerTTSHandler
 
-    tts = ParlerTTSHandler(
-        stop_event,
-        queue_in=lm_processed_queue,
-        queue_out=send_audio_chunks_queue,
-        setup_args=(should_listen,),
-        setup_kwargs=vars(parler_tts_handler_kwargs),
-    )
+        tts = ParlerTTSHandler(
+            stop_event,
+            queue_in=lm_processed_queue,
+            queue_out=send_audio_chunks_queue,
+            setup_args=(should_listen,),
+            setup_kwargs=vars(parler_tts_handler_kwargs),
+        )
+    else:
+        # Default: Edge TTS (cloud, no GPU needed)
+        from TTS.edge_tts_handler import EdgeTTSHandler
+
+        edge_kwargs = vars(edge_tts_handler_kwargs)
+        tts = EdgeTTSHandler(
+            stop_event,
+            queue_in=lm_processed_queue,
+            queue_out=send_audio_chunks_queue,
+            setup_args=(should_listen,),
+            setup_kwargs={
+                "voice": edge_kwargs.get("edge_tts_voice"),
+                "rate": edge_kwargs.get("edge_tts_rate", "+0%"),
+                "volume": edge_kwargs.get("edge_tts_volume", "+0%"),
+            },
+        )
 
     # --- Build and run ---
     pipeline_manager = ThreadManager(
@@ -276,6 +296,14 @@ def main():
 
     try:
         pipeline_manager.start()
+        # Keep the main thread alive while the pipeline runs.
+        # Without this, main() returns → Python starts interpreter shutdown →
+        # atexit sets concurrent.futures.thread._shutdown = True → ALL
+        # ThreadPoolExecutor.submit() calls fail globally. This breaks
+        # edge_tts/aiohttp which uses run_in_executor internally.
+        # Parler TTS was unaffected because it uses PyTorch (no executor).
+        while not stop_event.is_set():
+            stop_event.wait(timeout=1.0)
     except KeyboardInterrupt:
         if not shutdown_requested[0]:
             console.print("\n[yellow]Shutting down gracefully...[/yellow]")

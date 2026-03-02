@@ -6,13 +6,13 @@ REM  TTS audio is cached for smooth, lag-free playback.
 REM
 REM  Usage:
 REM    1. Start the S2S pipeline first (in another terminal):
-REM       run_sts_pipeline.bat
+REM       run_s2s_server.bat
 REM
 REM    2. Then run this script:
-REM       run_robot_s2s.bat
+REM       run_s2s_robot.bat
 REM
 REM    Or connect to a remote pipeline:
-REM       run_robot_s2s.bat 192.168.1.100
+REM       run_s2s_robot.bat 192.168.1.100
 REM ============================================================
 
 call venv\Scripts\activate.bat

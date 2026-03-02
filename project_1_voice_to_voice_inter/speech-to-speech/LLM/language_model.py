@@ -13,6 +13,7 @@ from baseHandler import BaseHandler
 from rich.console import Console
 import logging
 from nltk import sent_tokenize
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -34,6 +35,14 @@ WHISPER_LANGUAGE_TO_LLM_LANGUAGE = {
     "it": "italian",
     "nl": "dutch",
 }
+
+ALLOWED_ACTIONS: Dict[str, str] = {
+    "NONE": "Do nothing / no physical action.",
+    "MOVE_FORWARD": "Walk forward toward the user.",
+    "DANCE": "Perform a dance routine.",
+}
+
+DEFAULT_ACTION = "NONE"
 
 
 def parse_tool_calls(text):
