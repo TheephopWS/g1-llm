@@ -13,7 +13,6 @@ from baseHandler import BaseHandler
 from rich.console import Console
 import logging
 from nltk import sent_tokenize
-from typing import Dict
 from actions.allowed_actions import ALLOWED_ACTIONS, DEFAULT_ACTION
 
 logger = logging.getLogger(__name__)
