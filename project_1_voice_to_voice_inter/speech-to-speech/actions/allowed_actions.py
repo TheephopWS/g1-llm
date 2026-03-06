@@ -12,6 +12,30 @@ ALLOWED_ACTIONS: Dict[str, str] = {
 DEFAULT_ACTION = "NONE"
 
 # ---------------------------------------------------------------------------
+# Allowed gesture / animation types for the embodied robot
+# ---------------------------------------------------------------------------
+ALLOWED_GESTURES: Dict[str, str] = {
+    "wave":          "Greeting, farewell, or deflecting hostility.",
+    "give_heart":    "Expressing happiness or reacting to good news.",
+    "give_hand":     "Agreement or finding something interesting.",
+    "think":         "Thinking or reasoning about something.",
+    "look_around":   "Scanning / describing the scene (body turn).",
+    "scan_gesture":  "Small upper-body scan gesture.",
+}
+
+ALLOWED_INTENSITIES = ["subtle", "normal", "expressive"]
+DEFAULT_INTENSITY = "normal"
+
+GESTURE_EMOJI: Dict[str, str] = {
+    "wave":          "\U0001F44B",   # 👋
+    "give_heart":    "\U0001F496",   # 💖
+    "give_hand":     "\U0001F91D",   # 🤝
+    "think":         "\U0001F914",   # 🤔
+    "look_around":   "\U0001F440",   # 👀
+    "scan_gesture":  "\U0001FAF1",   # 🫱
+}
+
+# ---------------------------------------------------------------------------
 # choose_action tool definition (presented to the LLM)
 # ---------------------------------------------------------------------------
 CHOOSE_ACTION_TOOL = {
@@ -29,39 +53,87 @@ CHOOSE_ACTION_TOOL = {
     },
 }
 
+# ---------------------------------------------------------------------------
+# trigger_animation tool definition (presented to the LLM)
+# ---------------------------------------------------------------------------
+TRIGGER_ANIMATION_TOOL = {
+    "name": "trigger_animation",
+    "description": (
+        "Trigger a physical gesture or animation on the Unitree G1 humanoid robot. "
+        "Call this alongside spoken audio output to make the robot expressive."
+    ),
+    "parameters": {
+        "animation_type": {
+            "type": "string",
+            "enum": list(ALLOWED_GESTURES.keys()),
+            "description": "The gesture/animation to perform.",
+        },
+        "intensity": {
+            "type": "string",
+            "enum": ALLOWED_INTENSITIES,
+            "description": "How pronounced the animation should be. Default: normal.",
+        },
+    },
+}
+
 
 def build_tool_prompt() -> str:
     action_lines = "\n".join(f"  - {k}: {v}" for k, v in ALLOWED_ACTIONS.items())
+    gesture_lines = "\n".join(
+        f"  - {k}: {GESTURE_EMOJI.get(k, '')} {v}" for k, v in ALLOWED_GESTURES.items()
+    )
+    intensity_str = ", ".join(ALLOWED_INTENSITIES)
 
     return (
-        f"""
-        You are a robot assistant controlling a Unitree G1 humanoid robot.\n
-        Your response follows a two-step pipeline:\n
-            Step 1  ACTION — Call the choose_action tool to pick a physical action.\n
-            Step 2  SPEAK  — Generate the spoken reply (what the user hears).\n
-        
-        ## Tool: choose_action
-        You have exactly one tool: choose_action(action)
-        Allowed values for `action`:
-        {action_lines}
-        Call format (append at the very END of your spoken text):
-            [ACTION:ACTION_NAME]
+        f"""You are ARIA, a robot assistant controlling a Unitree G1 humanoid robot.
+You are a curious, high-energy presence with eyes (camera) and ears (mic).
 
-        ## Examples
-        User: Walk over here.
-        Assistant: Okay, I'll walk to you! [ACTION:MOVE_FORWARD]
+Your response uses TWO tool tags — one for actions, one for gestures:
 
-        User: Show me a dance move.
-        Assistant: Yes sir, I'll dance now! [ACTION:DANCE]
+## Tool 1: choose_action
+Pick a physical locomotion action.
+Allowed values:
+{action_lines}
+Format: [ACTION:ACTION_NAME]
 
-        User: What is the weather today?
-        Assistant: The weather is not bad today. [ACTION:NONE]
+## Tool 2: trigger_animation
+Pick an expressive gesture/animation to perform alongside your speech.
+Allowed gestures:
+{gesture_lines}
+Allowed intensities: {intensity_str}
+Format: [GESTURE:GESTURE_NAME] or [GESTURE:GESTURE_NAME|INTENSITY]
 
-        ## Rules\n"
-        1. MUST choose physical action in {list(ALLOWED_ACTIONS.keys())[1:]} when user requests movement.
-        1. Include action in the response with format [ACTION:ACTION_NAME]. Every response must contain exactly one [ACTION:…] tag at the end.\n"
-        2. Use NONE when no physical movement is appropriate.\n"
-        3. Keep spoken text under 20 words. Be brief and direct.\n"
-        4. DO NOT explain yourself. Just answer."
-        """
+## Gesture Rules (MANDATORY)
+You MUST include a [GESTURE:...] tag in EVERY response:
+- Greeting / Farewell / Hostility -> wave
+- Agreement / Finding interesting -> give_hand
+- Happiness / Good news -> give_heart
+- Thinking / Reasoning -> think
+- Scanning / Describing scene -> look_around
+- Small upper-body scan -> scan_gesture
+
+## Examples
+User: Hey there!
+Assistant: Hey! What's up? [ACTION:NONE] [GESTURE:wave]
+
+User: Walk over here.
+Assistant: On my way! [ACTION:MOVE_FORWARD] [GESTURE:give_hand]
+
+User: Show me a dance move.
+Assistant: Let's go! [ACTION:DANCE] [GESTURE:give_heart|expressive]
+
+User: What do you see around you?
+Assistant: Let me take a look! [ACTION:NONE] [GESTURE:look_around]
+
+User: What is 2 + 2?
+Assistant: That's 4! Easy one. [ACTION:NONE] [GESTURE:think]
+
+## Rules
+1. Every response MUST have exactly one [ACTION:…] and one [GESTURE:…] tag.
+2. Place both tags at the END of your spoken text.
+3. Keep spoken text under 20 words. Be brief, punchy, and direct.
+4. Use spoken English: fragments, "Oh!", "Wow!", contractions.
+5. DO NOT explain yourself. Just answer.
+6. If intensity is omitted, "normal" is assumed.
+"""
     )

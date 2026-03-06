@@ -14,13 +14,19 @@ from rich.console import Console
 import logging
 from nltk import sent_tokenize
 from typing import Dict
-from actions.allowed_actions import ALLOWED_ACTIONS, DEFAULT_ACTION, build_tool_prompt
+from actions.allowed_actions import (
+    ALLOWED_ACTIONS, DEFAULT_ACTION,
+    ALLOWED_GESTURES, ALLOWED_INTENSITIES, DEFAULT_INTENSITY,
+    GESTURE_EMOJI,
+    build_tool_prompt,
+)
 
 logger = logging.getLogger(__name__)
 console = Console()
 
 TOOL_PATTERN = re.compile(r'\[TOOL:(\w+)(?:\|([^\]]+))?\]')
 ACTION_PATTERN = re.compile(r'\[ACTION:(\w+)(?:\|([^\]]+))?\]')
+GESTURE_PATTERN = re.compile(r'\[GESTURE:(\w+)(?:\|([^\]]+))?\]')
 
 WHISPER_LANGUAGE_TO_LLM_LANGUAGE = {
     "en": "english",
@@ -62,8 +68,27 @@ def parse_tool_calls(text):
                     key, val = param.split(':', 1)
                     params[key] = val
         tools.append({"name": action_name, "parameters": params, "type": "action"})
+
+    # Parse [GESTURE:type] or [GESTURE:type|intensity] format (embodied animations)
+    for match in GESTURE_PATTERN.finditer(text):
+        gesture_name = match.group(1).lower()
+        intensity = (match.group(2) or DEFAULT_INTENSITY).strip().lower()
+        if intensity not in ALLOWED_INTENSITIES:
+            intensity = DEFAULT_INTENSITY
+        emoji = GESTURE_EMOJI.get(gesture_name, "")
+        tools.append({
+            "name": "trigger_animation",
+            "parameters": {
+                "animation_type": gesture_name,
+                "intensity": intensity,
+            },
+            "type": "gesture",
+            "emoji": emoji,
+        })
+
     clean_text = TOOL_PATTERN.sub('', text)
-    clean_text = ACTION_PATTERN.sub('', clean_text).strip()
+    clean_text = ACTION_PATTERN.sub('', clean_text)
+    clean_text = GESTURE_PATTERN.sub('', clean_text).strip()
 
     # Ensure there is always an action — default to NONE if the LLM omitted one
     has_action = any(t.get("type") == "action" or t.get("name", "").upper() in ALLOWED_ACTIONS for t in tools)
