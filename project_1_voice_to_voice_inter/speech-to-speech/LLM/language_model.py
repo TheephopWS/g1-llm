@@ -239,7 +239,7 @@ class LanguageModelHandler(BaseHandler):
             self.native_tools = NATIVE_TOOLS
             self._use_native_tools = True
             logger.info(
-                f"✅ Native tool calling ENABLED — model chat template supports tools= "
+                f"Supports tools= "
                 f"({len(NATIVE_TOOLS)} tools: {[f.__name__ for f in NATIVE_TOOLS]})"
             )
         else:
