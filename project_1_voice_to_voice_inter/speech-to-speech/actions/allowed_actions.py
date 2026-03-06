@@ -1,8 +1,5 @@
 from typing import Dict
 
-# ---------------------------------------------------------------------------
-# Allowed robot actions  (single source of truth)
-# ---------------------------------------------------------------------------
 ALLOWED_ACTIONS: Dict[str, str] = {
     "NONE": "Do nothing / no physical action. Use this for normal conversation.",
     "MOVE_FORWARD": "Walk forward toward the user.",
@@ -11,9 +8,6 @@ ALLOWED_ACTIONS: Dict[str, str] = {
 
 DEFAULT_ACTION = "NONE"
 
-# ---------------------------------------------------------------------------
-# Allowed gesture / animation types for the embodied robot
-# ---------------------------------------------------------------------------
 ALLOWED_GESTURES: Dict[str, str] = {
     "wave":          "Greeting, farewell, or deflecting hostility.",
     "give_heart":    "Expressing happiness or reacting to good news.",
@@ -27,17 +21,14 @@ ALLOWED_INTENSITIES = ["subtle", "normal", "expressive"]
 DEFAULT_INTENSITY = "normal"
 
 GESTURE_EMOJI: Dict[str, str] = {
-    "wave":          "\U0001F44B",   # 👋
-    "give_heart":    "\U0001F496",   # 💖
-    "give_hand":     "\U0001F91D",   # 🤝
-    "think":         "\U0001F914",   # 🤔
-    "look_around":   "\U0001F440",   # 👀
-    "scan_gesture":  "\U0001FAF1",   # 🫱
+    "wave":          "\U0001F44B",
+    "give_heart":    "\U0001F496",
+    "give_hand":     "\U0001F91D",
+    "think":         "\U0001F914",
+    "look_around":   "\U0001F440",
+    "scan_gesture":  "\U0001FAF1",
 }
 
-# ---------------------------------------------------------------------------
-# choose_action tool definition (presented to the LLM)
-# ---------------------------------------------------------------------------
 CHOOSE_ACTION_TOOL = {
     "name": "choose_action",
     "description": (
@@ -53,9 +44,6 @@ CHOOSE_ACTION_TOOL = {
     },
 }
 
-# ---------------------------------------------------------------------------
-# trigger_animation tool definition (presented to the LLM)
-# ---------------------------------------------------------------------------
 TRIGGER_ANIMATION_TOOL = {
     "name": "trigger_animation",
     "description": (
